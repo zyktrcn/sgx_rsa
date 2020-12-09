@@ -51,7 +51,11 @@ enclave {
     from "TrustedLibrary/Thread.edl" import *;
 
     trusted {
-        public void ecall_gen_key();
+        public int ecall_get_pubSize();
+        public uint8_t* ecall_gen_pubKey([in]int* pubSize);
+        public int ecall_get_prvSize();
+        public uint8_t* ecall_gen_prvKey([in]int* pubSize);
+        public void ecall_genKey([in]uint8_t** prv, [in]uint8_t** pub, int pubSize, int prvSize, [in]char** buffer, int bufferSize);
     };
 
 

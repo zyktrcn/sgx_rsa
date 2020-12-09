@@ -40,7 +40,6 @@ extern "C" {
 #endif
 
 int printf(const char* fmt, ...);
-void ecall_gen_key();
 
 #if defined(__cplusplus)
 }

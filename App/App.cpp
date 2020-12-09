@@ -42,6 +42,9 @@
 #include "App.h"
 #include "Enclave_u.h"
 
+
+#include <fstream>
+
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
 
@@ -176,6 +179,29 @@ void ocall_print_string(const char *str)
     printf("%s", str);
 }
 
+int get_file_size(char* filename) {
+    std::ifstream ifs(filename, std::ios::in | std::ios::binary);
+    ifs.seekg(0, std::ios::end);
+    int size = ifs.tellg();
+
+    return size;
+}
+
+char* read_file_to_buff(char* filename, int bsize) {
+    std::ifstream ifs(filename, std::ios::binary | std::ios::in);
+    char* buff = new char[bsize];
+    ifs.read(buff, bsize);
+    ifs.close();
+
+    return buff;
+}
+
+void write_buff_to_file(char* filename, char*buff, int bsize, long offset) {
+    std::ofstream ofs(filename, std::ios::binary | std::ios::out);
+    ofs.seekp(offset, std::ios::beg);
+    ofs.write(buff, bsize);
+}
+
 
 /* Application entry */
 int SGX_CDECL main(int argc, char *argv[])
@@ -202,7 +228,45 @@ int SGX_CDECL main(int argc, char *argv[])
     // ecall_libcxx_functions();
     // ecall_thread_functions();
 
-    ecall_gen_key(global_eid);
+    char* file = "/home/zyktrcn/sgx/sgx_rsa/App/test.png";
+    int fileSize = get_file_size(file);
+    char* fileBuffer = read_file_to_buff(file, fileSize);
+    printf("size: %d\n", fileSize);
+    printf("buffer: %s\n", fileBuffer);
+    write_buff_to_file("/home/zyktrcn/sgx/sgx_rsa/App/result.png", fileBuffer, fileSize, 0);
+
+    int pubSize;
+    ecall_get_pubSize(global_eid, &pubSize);
+    printf("pubSize: %d\n", pubSize);
+
+    uint8_t* pub;
+    ecall_gen_pubKey(global_eid, &pub, &pubSize);
+    printf("pub:  %s\n", pub);
+
+    int prvSize;
+    ecall_get_prvSize(global_eid, &prvSize);
+    printf("prvSize: %d\n", prvSize);
+
+    uint8_t* prv;
+    ecall_gen_prvKey(global_eid, &prv, &prvSize);
+    printf("prv:  %s\n", prv);
+
+    sgx_status_t ret = ecall_genKey(global_eid, &prv, &pub, prvSize, pubSize, &fileBuffer, fileSize);
+    if (ret != SGX_SUCCESS) {
+        printf("fail\n");
+
+        if (ret == SGX_ERROR_INVALID_PARAMETER) {
+            printf("SGX_ERROR_INVALID_PARAMETER\n");
+        }
+
+        if (ret == SGX_ERROR_OUT_OF_MEMORY) {
+            printf("SGX_ERROR_OUT_OF_MEMORY\n");
+        }
+
+        if (ret == SGX_ERROR_UNEXPECTED) {
+            printf("SGX_ERROR_UNEXPECTED\n");
+        }
+    }
 
     /* Destroy the enclave */
     sgx_destroy_enclave(global_eid);
