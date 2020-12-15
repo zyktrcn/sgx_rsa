@@ -42,6 +42,7 @@
 #include "App.h"
 #include "Enclave_u.h"
 
+#include <time.h>
 
 #include <fstream>
 
@@ -196,10 +197,27 @@ char* read_file_to_buff(char* filename, int bsize) {
     return buff;
 }
 
-void write_buff_to_file(char* filename, char*buff, int bsize, long offset) {
+void write_buff_to_file(char* filename, char* buff, int bsize, long offset) {
     std::ofstream ofs(filename, std::ios::binary | std::ios::out);
     ofs.seekp(offset, std::ios::beg);
     ofs.write(buff, bsize);
+}
+
+char* char_concat(char* str1, char* str2) {
+    int len = strlen(str1) + strlen(str2);
+    char* str = (char*)malloc(len);
+    strcpy(str, str1);
+    strcat(str, str2);
+
+    return str;
+}
+
+char* char_plus_int(char* str1, int i) {
+    int len = strlen(str1) + 10;
+    char* str = (char*)malloc(len);
+    sprintf(str, "%s%d\n", str1, i);
+
+    return str;
 }
 
 
@@ -251,7 +269,18 @@ int SGX_CDECL main(int argc, char *argv[])
     ecall_gen_prvKey(global_eid, &prv, &prvSize);
     printf("prv:  %s\n", prv);
 
-    sgx_status_t ret = ecall_genKey(global_eid, &prv, &pub, prvSize, pubSize, &fileBuffer, fileSize);
+    int scratchSize;
+    ecall_gen_scratchSize(global_eid, &scratchSize, &prv, &pub, prvSize, pubSize);
+    printf("scratchSize: %d\n", scratchSize);
+
+    uint8_t* scratchBuffer = (uint8_t*)malloc(scratchSize);;
+
+    clock_t start = clock();
+
+    uint8_t* encryption;
+    int enSize;
+
+    sgx_status_t ret = ecall_encrypt(global_eid, &encryption, &pub, pubSize, scratchBuffer, scratchSize, &fileBuffer, fileSize, &enSize);
     if (ret != SGX_SUCCESS) {
         printf("fail\n");
 
@@ -267,6 +296,65 @@ int SGX_CDECL main(int argc, char *argv[])
             printf("SGX_ERROR_UNEXPECTED\n");
         }
     }
+    printf("scratchBuffer: %s\n", scratchBuffer);
+    printf("enSize: %d\n", enSize);
+    printf("encryption: %s\n", encryption);
+
+    clock_t end = clock();
+
+    char* enResult = char_concat(char_plus_int("encryption start:", start), char_plus_int("encryption end:", end));
+    printf("%s", enResult);
+
+    start = clock();
+
+    uint8_t* decryption;
+    int deSize;
+
+    ret = ecall_decryption(global_eid, &decryption, &prv, prvSize, scratchBuffer, scratchSize, &encryption, enSize, &deSize);
+    if (ret != SGX_SUCCESS) {
+        printf("fail\n");
+
+        if (ret == SGX_ERROR_INVALID_PARAMETER) {
+            printf("SGX_ERROR_INVALID_PARAMETER\n");
+        }
+
+        if (ret == SGX_ERROR_OUT_OF_MEMORY) {
+            printf("SGX_ERROR_OUT_OF_MEMORY\n");
+        }
+
+        if (ret == SGX_ERROR_UNEXPECTED) {
+            printf("SGX_ERROR_UNEXPECTED\n");
+        }
+    }
+    printf("deSize: %d\n", deSize);
+    printf("decryption: %s\n", decryption);
+
+    end = clock();
+
+    char* deResult = char_concat(char_plus_int("decryption start:", start), char_plus_int("decryption end:", end));
+    printf("%s", deResult);
+
+    char* result = char_concat(enResult, deResult);
+    printf("bsize: %d\n", strlen(result));
+    write_buff_to_file("/home/zyktrcn/sgx/sgx_rsa/App/result.txt", result, strlen(result), 0);
+
+
+    // sgx_status_t ret = ecall_genKey(global_eid, &prv, &pub, prvSize, pubSize, &fileBuffer, fileSize);
+    // if (ret != SGX_SUCCESS) {
+    //     printf("fail\n");
+
+    //     if (ret == SGX_ERROR_INVALID_PARAMETER) {
+    //         printf("SGX_ERROR_INVALID_PARAMETER\n");
+    //     }
+
+    //     if (ret == SGX_ERROR_OUT_OF_MEMORY) {
+    //         printf("SGX_ERROR_OUT_OF_MEMORY\n");
+    //     }
+
+    //     if (ret == SGX_ERROR_UNEXPECTED) {
+    //         printf("SGX_ERROR_UNEXPECTED\n");
+    //     }
+    // }
 
     /* Destroy the enclave */
     sgx_destroy_enclave(global_eid);

@@ -273,6 +273,135 @@ uint8_t* ecall_gen_prvKey(int* keyCtxSize) {
     return prv;
 }
 
+int ecall_gen_scratchSize(uint8_t** prv, uint8_t** pub, int prvSize, int pubSize) {
+    IppsRSAPublicKeyState* pPub = (IppsRSAPublicKeyState*)( new Ipp8u [pubSize] );
+    memcpy(pPub, *pub, pubSize);
+    printf("generate public key\n");
+
+    IppsRSAPrivateKeyState* pPrv = (IppsRSAPrivateKeyState*)( new Ipp8u [prvSize] );
+    memcpy(pPrv, *prv, prvSize);
+    printf("generate private key\n");
+
+    int keyCtxSize;
+    IppStatus status;
+
+    // allocate scratch buffer
+    int buffSizePublic;
+    status = ippsRSA_GetBufferSizePublicKey(&buffSizePublic, pPub);
+    if (status != ippStsNoErr) {
+        printf("err: ippsRSA_GetBufferSizePublicKey\n");
+    } else {
+        printf("success: ippsRSA_GetBufferSizePublicKey\n");
+    }
+
+    int buffSizePrivate;
+    status = ippsRSA_GetBufferSizePrivateKey(&buffSizePrivate, pPrv);
+    if (status != ippStsNoErr) {
+        printf("err: ippsRSA_GetBufferSizePrivateKey\n");
+    } else {
+        printf("success: ippsRSA_GetBufferSizePrivateKey\n");
+    }
+
+    int buffSize;
+    if (buffSizePublic > buffSizePrivate) {
+        buffSize = buffSizePublic;
+    } else {
+        buffSize = buffSizePrivate;
+    }
+
+    return buffSize;
+}
+
+uint8_t* ecall_encrypt(uint8_t** pub, int pubSize, uint8_t* scratchBuffer, int scratchSize, char** buffer, int bufferSize, int* enSize) {
+    IppsRSAPublicKeyState* pPub = (IppsRSAPublicKeyState*)( new Ipp8u [pubSize] );
+    memcpy(pPub, *pub, pubSize);
+    printf("generate public key\n");
+
+    Ipp8u* scratch = new Ipp8u[scratchSize];
+
+    IppStatus status;
+
+    Ipp8u* enStr = (Ipp8u*)malloc(bufferSize);
+    memcpy(enStr, *buffer, bufferSize);
+    printf("enStr: %d\n", enStr);
+
+    IppsBigNumState* enBN = transformFromIpp8uToIppsBigNumState(enStr);
+    IppsBigNumState* ct = createBigNumState((8+31)>>5, 0);
+    status = ippsRSA_Encrypt(enBN, ct, pPub, scratch);
+    if (status != ippStsNoErr) {
+        printf("err: ippsRSA_Encrypt\n");
+    } else {
+        printf("success: ippsRSA_Encrypt\n");
+    }
+
+    ippsGetSize_BN(ct, enSize);
+    Ipp8u* bnValue = (Ipp8u*)malloc(*enSize * 4);
+    ippsGetOctString_BN(bnValue, *enSize * 4, ct);
+    printf("bnValue: %d\n", bnValue);
+
+    uint8_t* encryption = (uint8_t*)malloc(*enSize * 4);
+    memcpy(encryption, bnValue, *enSize * 4);
+
+    memcpy(scratchBuffer, scratch, sizeof(scratch));
+    
+    return encryption;
+}
+
+uint8_t* ecall_decryption(uint8_t** prv, int prvSize, uint8_t* scratchBuffer, int scratchSize, uint8_t** encryption, int enSize, int* deSize) {
+    IppsRSAPrivateKeyState* pPrv = (IppsRSAPrivateKeyState*)( new Ipp8u [prvSize] );
+    memcpy(pPrv, *prv, prvSize);
+    printf("generate private key\n");
+
+    Ipp8u* scratch = new Ipp8u[scratchSize];
+    memcpy(scratch, scratchBuffer, scratchSize);
+
+    IppStatus status;
+
+    Ipp8u* enStr = (Ipp8u*)malloc(enSize * 4);
+    memcpy(enStr, encryption, enSize * 4);
+
+    IppsBigNumState* ct = transformFromIpp8uToIppsBigNumState(enStr);
+
+    IppsBigNumState* deBN = createBigNumState(enSize * 4, NULL);
+    status = ippsRSA_Decrypt(ct, deBN, pPrv, scratch);
+    if (status != ippStsNoErr) {
+        printf("err: ippsRSA_Decrypt\n");
+
+        if (status == ippStsNullPtrErr) {
+            printf("null err\n");
+        }
+
+        if (status == ippStsContextMatchErr) {
+            printf("not match\n");
+        }
+
+        if (status == ippStsIncompleteContextErr) {
+            printf("incomplete err\n");
+        }
+
+        if (status == ippStsSizeErr) {
+            printf("size err\n");
+        }
+
+        if (status == ippStsOutOfRangeErr) {
+            printf("out of range\n");
+        }
+
+    } else {
+        printf("success: ippsRSA_Decrypt\n");
+    }
+
+    ippsGetSize_BN(deBN, deSize);
+    Ipp8u* bnValue = (Ipp8u*)malloc(*deSize * 4);
+    ippsGetOctString_BN(bnValue, *deSize * 4, ct);
+    printf("deStr: %d\n", bnValue);
+
+    uint8_t* decryption = (uint8_t*)malloc(*deSize * 4);
+    memcpy(decryption, bnValue, *deSize * 4);
+
+    return decryption;
+}
+
 void ecall_genKey(uint8_t** prv, uint8_t** pub, int prvSize, int pubSize, char** buffer, int bufferSize) {
 
     printf("start\n");

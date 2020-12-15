@@ -55,6 +55,9 @@ enclave {
         public uint8_t* ecall_gen_pubKey([in]int* pubSize);
         public int ecall_get_prvSize();
         public uint8_t* ecall_gen_prvKey([in]int* pubSize);
+        public int ecall_gen_scratchSize([in]uint8_t** prv, [in]uint8_t** pub, int pubSize, int prvSize);
+        public uint8_t* ecall_encrypt([in]uint8_t** pub, int prvSize, [out]uint8_t* scratchBuffer, int scratchBufferSize, [in]char** buffer, int bufferSize, [out]int* enSize);
+        public uint8_t* ecall_decryption([in]uint8_t** prv, int prvSize, [in]uint8_t* scratchBuffer, int scratchSize, [in]uint8_t** encryption, int enSize, [out]int* deSize);
         public void ecall_genKey([in]uint8_t** prv, [in]uint8_t** pub, int pubSize, int prvSize, [in]char** buffer, int bufferSize);
     };
 
