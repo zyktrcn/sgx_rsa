@@ -344,6 +344,13 @@ uint8_t* ecall_encrypt(uint8_t** pub, int pubSize, uint8_t* scratchBuffer, int s
 
     memcpy(scratchBuffer, scratch, sizeof(scratch));
     
+    delete[] pPub;
+    delete[] enStr;
+    delete[] enBN;
+    delete[] ct;
+    delete[] bnValue;
+    delete[] scratch;
+
     return encryption;
 }
 
@@ -398,6 +405,14 @@ uint8_t* ecall_decryption(uint8_t** prv, int prvSize, uint8_t* scratchBuffer, in
 
     uint8_t* decryption = (uint8_t*)malloc(*deSize * 4);
     memcpy(decryption, bnValue, *deSize * 4);
+
+    delete[] pPrv;
+    delete[] scratch;
+    delete[] enStr;
+    delete[] ct;
+    delete[] deBN;
+    
+    delete[] bnValue;
 
     return decryption;
 }

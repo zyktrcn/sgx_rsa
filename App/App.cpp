@@ -46,6 +46,8 @@
 
 #include <fstream>
 
+#include <string.h>
+
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
 
@@ -204,7 +206,8 @@ void write_buff_to_file(char* filename, char* buff, int bsize, long offset) {
 }
 
 char* char_concat(char* str1, char* str2) {
-    int len = strlen(str1) + strlen(str2);
+    int len = strlen(str1) + strlen(str2) + 4;
+    // printf("%d, %d, %d\n", strlen(str1), strlen(str2), len);
     char* str = (char*)malloc(len);
     strcpy(str, str1);
     strcat(str, str2);
@@ -220,60 +223,13 @@ char* char_plus_int(char* str1, int i) {
     return str;
 }
 
-
-/* Application entry */
-int SGX_CDECL main(int argc, char *argv[])
-{
-    (void)(argc);
-    (void)(argv);
-
-
-    /* Initialize the enclave */
-    if(initialize_enclave() < 0){
-        printf("Enter a character before exit ...\n");
-        getchar();
-        return -1; 
-    }
- 
-    // /* Utilize edger8r attributes */
-    // edger8r_array_attributes();
-    // edger8r_pointer_attributes();
-    // edger8r_type_attributes();
-    // edger8r_function_attributes();
-    
-    // /* Utilize trusted libraries */
-    // ecall_libc_functions();
-    // ecall_libcxx_functions();
-    // ecall_thread_functions();
-
-    char* file = "/home/zyktrcn/sgx/sgx_rsa/App/test.png";
-    int fileSize = get_file_size(file);
-    char* fileBuffer = read_file_to_buff(file, fileSize);
+char* gen(char* filename, uint8_t* pub, int pubSize, uint8_t* prv, int prvSize, uint8_t* scratchBuffer, int scratchSize) {
+    // char* file = "/home/zyktrcn/sgx/sgx_rsa/App/test.png";
+    int fileSize = get_file_size(filename);
+    char* fileBuffer = read_file_to_buff(filename, fileSize);
     printf("size: %d\n", fileSize);
     printf("buffer: %s\n", fileBuffer);
-    write_buff_to_file("/home/zyktrcn/sgx/sgx_rsa/App/result.png", fileBuffer, fileSize, 0);
-
-    int pubSize;
-    ecall_get_pubSize(global_eid, &pubSize);
-    printf("pubSize: %d\n", pubSize);
-
-    uint8_t* pub;
-    ecall_gen_pubKey(global_eid, &pub, &pubSize);
-    printf("pub:  %s\n", pub);
-
-    int prvSize;
-    ecall_get_prvSize(global_eid, &prvSize);
-    printf("prvSize: %d\n", prvSize);
-
-    uint8_t* prv;
-    ecall_gen_prvKey(global_eid, &prv, &prvSize);
-    printf("prv:  %s\n", prv);
-
-    int scratchSize;
-    ecall_gen_scratchSize(global_eid, &scratchSize, &prv, &pub, prvSize, pubSize);
-    printf("scratchSize: %d\n", scratchSize);
-
-    uint8_t* scratchBuffer = (uint8_t*)malloc(scratchSize);;
+    // write_buff_to_file("/home/zyktrcn/sgx/sgx_rsa/App/result.png", fileBuffer, fileSize, 0);
 
     clock_t start = clock();
 
@@ -335,7 +291,81 @@ int SGX_CDECL main(int argc, char *argv[])
     printf("%s", deResult);
 
     char* result = char_concat(enResult, deResult);
-    printf("bsize: %d\n", strlen(result));
+    return result;
+}
+
+
+/* Application entry */
+int SGX_CDECL main(int argc, char *argv[])
+{
+    (void)(argc);
+    (void)(argv);
+
+
+    /* Initialize the enclave */
+    if(initialize_enclave() < 0){
+        return -1; 
+    }
+ 
+    // /* Utilize edger8r attributes */
+    // edger8r_array_attributes();
+    // edger8r_pointer_attributes();
+    // edger8r_type_attributes();
+    // edger8r_function_attributes();
+    
+    // /* Utilize trusted libraries */
+    // ecall_libc_functions();
+    // ecall_libcxx_functions();
+    // ecall_thread_functions();
+
+    int pubSize;
+    ecall_get_pubSize(global_eid, &pubSize);
+    printf("pubSize: %d\n", pubSize);
+
+    uint8_t* pub;
+    ecall_gen_pubKey(global_eid, &pub, &pubSize);
+    printf("pub:  %s\n", pub);
+
+    int prvSize;
+    ecall_get_prvSize(global_eid, &prvSize);
+    printf("prvSize: %d\n", prvSize);
+
+    uint8_t* prv;
+    ecall_gen_prvKey(global_eid, &prv, &prvSize);
+    printf("prv:  %s\n", prv);
+
+    int scratchSize;
+    ecall_gen_scratchSize(global_eid, &scratchSize, &prv, &pub, prvSize, pubSize);
+    printf("scratchSize: %d\n", scratchSize);
+
+    uint8_t* scratchBuffer = (uint8_t*)malloc(scratchSize);;
+
+    int i = 15000;
+    char* prefix = "/home/zyktrcn/sgx/sgx_rsa/App/yelp_photos/photos/";
+    char* path = "/home/zyktrcn/sgx/sgx_rsa/App/yelp_photos/list";
+    int yelpSize = get_file_size(path);
+    char* yelpBuffer = read_file_to_buff(path, yelpSize);
+    char* yelpPhoto;
+    char* result;
+    char* temp;
+    yelpPhoto = strtok(yelpBuffer, "\\n");
+    yelpPhoto = strtok(NULL, "\n");
+    while(yelpPhoto != NULL && i < 20000) {
+        printf("i:%d\n", i);
+        result = char_concat(result, char_concat(yelpPhoto, "\n"));
+        result = char_concat(result, char_plus_int("size:", yelpSize));
+        yelpPhoto = char_concat(prefix, yelpPhoto);
+        printf("filename: %s\n", yelpPhoto);
+
+        temp = gen(yelpPhoto, pub, pubSize, prv, prvSize, scratchBuffer, scratchSize);
+        result = char_concat(result, temp);
+
+        yelpPhoto = strtok(NULL, "\n");
+        i++;
+    }    
+
+    printf("%s", result);
+
     write_buff_to_file("/home/zyktrcn/sgx/sgx_rsa/App/result.txt", result, strlen(result), 0);
 
 
@@ -361,8 +391,6 @@ int SGX_CDECL main(int argc, char *argv[])
     
     printf("Info: SampleEnclave successfully returned.\n");
 
-    printf("Enter a character before exit ...\n");
-    getchar();
     return 0;
 }
 
